@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # VsCode - Github-File-Folder-Url
 
 VsCode Extension that gets a Github url with optional line selection for files and folders.
@@ -12,3 +13,7 @@ Usage: `Ctrl+Alt+Z` gets url for all open files and copies them to clipboard
 
 1. Within Visual Studio Code, open the command palette (`Ctrl-Shift-P` / `Cmd-Shift-P`)
 2. Type `install extension` and search for `Github-File-Folder-Url`
+=======
+# vscode-github-file-folder-url
+VsCode Extension that gets a Github url with optional line selection for files and folders.
+>>>>>>> 929ad2d5bef3745e96fd10f632d5f56eabdd06ce
