@@ -111,10 +111,16 @@ Workspace Root:  ${workspaceRootPath}`;
 function executeCommand1(commandName, fileUri, pullLines) {
    try {
       const workspaceRootPath = vscode.workspace.rootPath;
-      const lineInfo = pullLines ? {
-         start: editor.selection.start.line + 1,
-         end: editor.selection.end.line + 1,
-      } : null;
+      let lineInfo = null;
+      if (pullLines) {
+         let editor = vscode.window.activeTextEditor;
+         if (editor) {
+            lineInfo = {
+               start: editor.selection.start.line + 1,
+               end: editor.selection.end.line + 1,
+            };
+         }
+      }
 
       let filePath;
       if (fileUri && fileUri.fsPath) {

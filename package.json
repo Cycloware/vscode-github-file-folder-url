@@ -1,6 +1,6 @@
 {
    "name": "vscode-github-file-folder-url",
-   "version": "1.1.6",
+   "version": "1.1.8",
    "publisher": "cycloware",
    "displayName": "VsCode - Github-File-Folder-Url",
    "description": "VsCode Extension that gets a Github url with optional line selection for files and folders.",
