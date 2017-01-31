@@ -10,6 +10,10 @@ const copyPaste = require("copy-paste");
 
 const extensionName = 'Github-File-Url';
 
+const TYPE = {
+   git_config: '.git/config',
+   git_modules: '.gitmodules',
+};
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -43,7 +47,7 @@ function executeCommandAllTextEditors(commandName) {
          return;
       }
 
-      textEditors.forEach(p=> uniquePaths[p.fileName] = true);      
+      textEditors.forEach(p => uniquePaths[p.fileName] = true);
 
       const allPaths = [];
       const allErrors = [];
@@ -55,7 +59,7 @@ function executeCommandAllTextEditors(commandName) {
                case 'success':
                   {
                      const url = result.url;
-                     const relativeFilePath = result.relativeFilePath;
+                     const relativeFilePath = result.relativePathFromGitRoot;
                      const urlMarkdownLink = `[${relativeFilePath}](${url})`;
                      allPaths.push(urlMarkdownLink);
                   }
@@ -134,7 +138,7 @@ function executeCommand1(commandName, fileUri, pullLines) {
             case 'success':
                {
                   const url = result.url;
-                  const relativeFilePath = result.relativeFilePath;
+                  const relativeFilePath = result.relativePathFromGitRoot;
                   const urlMarkdownLink = `[${relativeFilePath}](${url})`;
                   copyPaste.copy(urlMarkdownLink);
                }
@@ -175,27 +179,44 @@ Workspace Root:  ${workspaceRootPath}`;
 
 function generateGithubUrl(commandName, workspaceRootPath, filePath, lineSelection) {
    try {
-      const parseResult = findAndParseConfig(workspaceRootPath);
+      workspaceRootPath = workspaceRootPath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
+      filePath = filePath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
+      const parseResult = findAndParseConfig(filePath);
       if (!parseResult) {
          const errorMessage = `${extensionName} extension failed to find a Github config at the workspace folder or any of it's parent folders.
 Is this a Github repository?
 
-Workspace Root:  ${workspaceRootPath}`;
+Workspace Root:  ${workspaceRootPath}
+Filepath:        ${filePath}`;
          return {
             type: 'error',
             errorMessage,
          };
       }
       const config = parseResult.config;
-      const cwd = parseResult.rootPath;
-      const branch = gitBranch.sync(cwd);
+      const rootPathForGitConfig = parseResult.rootPath;
+      const branch = gitBranch.sync(rootPathForGitConfig);
       const remoteConfig = config[`branch "${branch}"`];
       const remoteName = remoteConfig && remoteConfig.remote ? remoteConfig.remote : 'origin';
       const finalConfig = config[`remote "${remoteName}"`];
       if (finalConfig) {
-         const githubRootUrl = githubUrlFromGit(finalConfig.url);
-         let relativeFilePath = filePath.substring(cwd.length).replace(/\\/g, '/'); // Flip subdir slashes on Windows
+         let targetUrl = finalConfig.url;
+         let targetPath = rootPathForGitConfig;
+         for (const sub of parseResult.subModules) {
+            if (filePath.search(sub.path) === 0) {
+               targetUrl = sub.url;
+               targetPath = sub.path;
+               break;
+            }
+         }
+
+         const githubRootUrl = githubUrlFromGit(targetUrl);
+         let relativePathFromGitRoot = filePath.substring(rootPathForGitConfig.length).replace(/\\/g, '/'); // Flip subdir slashes on Windows
+         let relativeFilePath = filePath.substring(targetPath.length).replace(/\\/g, '/'); // Flip subdir slashes on Windows
          let url = `${githubRootUrl}/blob/${branch}${relativeFilePath}`;
+         if (relativePathFromGitRoot[0] === '/') {
+            relativePathFromGitRoot = relativePathFromGitRoot.slice(1);
+         }
          if (relativeFilePath[0] === '/') {
             relativeFilePath = relativeFilePath.slice(1);
          }
@@ -214,12 +235,14 @@ Workspace Root:  ${workspaceRootPath}`;
             type: 'success',
             url,
             relativeFilePath,
+            relativePathFromGitRoot,
          }
       } else {
          let errorMessage = `${extensionName} extension failed to find a remote config for "${remoteName}" in branch "${branch}".
 Is this a Github repository?
 
-Workspace Root:  ${workspaceRootPath}`;
+Workspace Root:  ${workspaceRootPath}
+Filepath:        ${filePath}`;
          return {
             type: 'error',
             errorMessage,
@@ -238,9 +261,17 @@ Workspace Root:  ${workspaceRootPath}`;
    }
 }
 
+const reSubModulePuller = /"([^"]*)"/g;
+
 function findAndParseConfig(rootPath) {
-   function intParseConfig(cwd) {
-      let ret = parseConfig.sync({ cwd: cwd, path: '.git/config' });
+   function intParseGitConfig(cwd) {
+      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.git_config });
+      if (!(Object.keys(ret).length === 0 && ret.constructor === Object)) {
+         return ret;
+      }
+   }
+   function intParseModuleConfig(cwd) {
+      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.git_modules });
       if (!(Object.keys(ret).length === 0 && ret.constructor === Object)) {
          return ret;
       }
@@ -248,16 +279,72 @@ function findAndParseConfig(rootPath) {
 
    rootPath = rootPath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
    const pathParts = rootPath.split('/');
+   let subModuleConfigs = [];
+   let subModules = [];
    let stepsUp = 0;
    while (pathParts.length > 0) {
       let currentPath = pathParts.join('/');
-      let config = intParseConfig(currentPath);
-      if (config) {
-         return {
+      let gitConfig = intParseGitConfig(currentPath);
+      function pullSubModules(subMeta) {
+         const config = subMeta.config;
+         const ret = [];
+         for (const key in config) {
+            const match1 = reSubModulePuller.exec(key);
+            if (match1 && match1.length === 2) {
+               const subConfig = config[key];
+               const subUrl = subConfig.url;
+               const modName = match1[1];
+               const modFullpath = path.join(currentPath, modName).replace(/\\/g, '/');
+               if (!subUrl) {
+                  console.warn(`subModule '${name}' at '${modFullpath}' is missing a url, it will be skipped`);
+               } else {
+                  const metaInfo = {
+                     path: modFullpath,
+                     name: modName,
+                     url: subUrl,
+                  };
+                  subModules.push(metaInfo);
+                  ret.push(metaInfo);
+               }
+            }
+         }
+         return ret;
+      }
+      if (gitConfig) {
+
+         const pathMap = [];
+         for (const sub of subModuleConfigs) {
+            const subRoot = sub.path;
+            // const fullModulePath = path.join(sub.)).replace(/\\/g, '/')
+            // pathMap
+         }
+
+         const rootMeta = {
+            type: TYPE.git_config,
             rootPath: currentPath,
-            config,
-            stepsUp
+            path: currentPath,
+            config: gitConfig,
+            stepsUp,
          };
+         const subs = pullSubModules(rootMeta);
+         rootMeta.subs = subs;
+
+         rootMeta.subModules = subModules;
+
+         return rootMeta;
+      } else {
+         let moduleConfig = intParseModuleConfig(currentPath);
+         if (moduleConfig) {
+            const subMeta = {
+               type: TYPE.git_modules,
+               path: currentPath,
+               config: moduleConfig,
+               stepsUp,
+            };
+            const subs = pullSubModules(subMeta);
+            subMeta.subs = subs;
+            subModuleConfigs.push(subMeta);
+         }
       }
       stepsUp++;
       pathParts.pop();
