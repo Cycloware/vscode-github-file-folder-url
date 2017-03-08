@@ -7,6 +7,7 @@ const parseConfig = require('parse-git-config');
 const gitBranch = require('git-branch');
 const githubUrlFromGit = require('github-url-from-git');
 const copyPaste = require("copy-paste");
+const fs = require("fs");
 
 const extensionName = 'Github-File-Url';
 
@@ -20,21 +21,45 @@ const TYPE = {
 function activate(context) {
 
    // The command has been defined in the package.json file
-   const commandName1 = 'extension.github-file-folder-url.copyGithubUrlWithSelection';
-   context.subscriptions.push(vscode.commands.registerCommand(commandName1, (fileUri) => {
-      executeCommand1(commandName1, fileUri, true);
-   }));
-   const commandName2 = 'extension.github-file-folder-url.copyGithubUrl';
-   context.subscriptions.push(vscode.commands.registerCommand(commandName2, (fileUri) => {
-      executeCommand1(commandName2, fileUri, false);
-   }));
-   const commandName3 = 'extension.github-file-folder-url.copyGithubUrlForAllOpenFiles';
-   context.subscriptions.push(vscode.commands.registerCommand(commandName3, () => {
-      executeCommandAllTextEditors(commandName3);
-   }));
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrlWithSelection';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+         executeCommand1(commandName, fileUri, true, false);
+      }));
+   }
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrlWithSelection-simple';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+         executeCommand1(commandName, fileUri, true, true);
+      }));
+   }
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrl';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+         executeCommand1(commandName, fileUri, false, false);
+      }));
+   }
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrl-simple';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+         executeCommand1(commandName, fileUri, false, true);
+      }));
+   }
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrlForAllOpenFiles';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (args) => {
+         executeCommandAllTextEditors(commandName, false);
+      }));
+   }
+   {
+      const commandName = 'extension.github-file-folder-url.copyGithubUrlForAllOpenFiles-simple';
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (args) => {
+         executeCommandAllTextEditors(commandName, true);
+      }));
+   }
 }
 
-function executeCommandAllTextEditors(commandName) {
+function executeCommandAllTextEditors(commandName, simpleFormat) {
 
    try {
       const workspaceRootPath = vscode.workspace.rootPath;
@@ -47,12 +72,31 @@ function executeCommandAllTextEditors(commandName) {
          return;
       }
 
-      textEditors.forEach(p => uniquePaths[p.fileName] = true);
+      textEditors.forEach(p => {
+         uniquePaths[p.fileName] = p;
+      });
+
+      const allFilePaths = Object.keys(uniquePaths);
 
       const allPaths = [];
       const allErrors = [];
+      const allWarnings = [];
 
       for (let filePath in uniquePaths) {
+         if (!fs.existsSync(filePath)) {
+            const extension = path.extname(filePath);
+            const errorMessage = `The file '${filePath}' does not exist locally, so no url was generated.`;
+            if (allFilePaths.length > 1) {
+               if (extension === '.rendered') {
+                  // silently skip this
+               } else {
+                  allWarnings.push(errorMessage);
+               }
+            } else {
+               allErrors.push(errorMessage);
+            }
+            continue;
+         }
          const result = generateGithubUrl(commandName, workspaceRootPath, filePath, null);
          if (result) {
             switch (result.type) {
@@ -60,7 +104,7 @@ function executeCommandAllTextEditors(commandName) {
                   {
                      const url = result.url;
                      const relativeFilePath = result.relativePathFromGitRoot;
-                     const urlMarkdownLink = `[${relativeFilePath}](${url})`;
+                     const urlMarkdownLink = simpleFormat ? url : `[${relativeFilePath}](${url})`;
                      allPaths.push(urlMarkdownLink);
                   }
                   break;
@@ -108,7 +152,7 @@ Workspace Root:  ${workspaceRootPath}`;
    }
 
 }
-function executeCommand1(commandName, fileUri, pullLines) {
+function executeCommand1(commandName, fileUri, pullLines, simpleFormat) {
    try {
       const workspaceRootPath = vscode.workspace.rootPath;
       let lineInfo = null;
@@ -138,6 +182,12 @@ function executeCommand1(commandName, fileUri, pullLines) {
          filePath = editor.document.fileName;
       }
 
+         if (!fs.existsSync(filePath)) {
+            // we generate a warning but still generate the url
+            const errorMessage = `The file '${filePath}' does not exist locally, so no url was generated.`;
+            allWarnings.push(errorMessage);
+         }
+
       const result = generateGithubUrl(commandName, workspaceRootPath, filePath, lineInfo);
       if (result) {
          switch (result.type) {
@@ -145,7 +195,7 @@ function executeCommand1(commandName, fileUri, pullLines) {
                {
                   const url = result.url;
                   const relativeFilePath = result.relativePathFromGitRoot;
-                  const urlMarkdownLink = `[${relativeFilePath}](${url})`;
+                  const urlMarkdownLink = simpleFormat ? url :`[${relativeFilePath}](${url})`;
                   copyPaste.copy(urlMarkdownLink);
                }
                return;

@@ -1,6 +1,6 @@
 {
    "name": "vscode-github-file-folder-url",
-   "version": "1.1.8",
+   "version": "1.2.0",
    "publisher": "cycloware",
    "displayName": "VsCode - Github-File-Folder-Url",
    "description": "VsCode Extension that gets a Github url with optional line selection for files and folders.",
@@ -24,8 +24,11 @@
    ],
    "activationEvents": [
       "onCommand:extension.github-file-folder-url.copyGithubUrl",
+      "onCommand:extension.github-file-folder-url.copyGithubUrl-simple",
       "onCommand:extension.github-file-folder-url.copyGithubUrlWithSelection",
-      "onCommand:extension.github-file-folder-url.copyGithubUrlForAllOpenFiles"
+      "onCommand:extension.github-file-folder-url.copyGithubUrlWithSelection-simple",
+      "onCommand:extension.github-file-folder-url.copyGithubUrlForAllOpenFiles",
+      "onCommand:extension.github-file-folder-url.copyGithubUrlForAllOpenFiles-simple"
    ],
    "main": "./extension",
    "contributes": {
@@ -34,6 +37,10 @@
             {
                "command": "extension.github-file-folder-url.copyGithubUrl",
                "title": "Copy GitHub URL"
+            },
+            {
+               "command": "extension.github-file-folder-url.copyGithubUrl-simple",
+               "title": "Copy RAW GitHub URL"
             }
          ]
       },
@@ -43,14 +50,25 @@
             "title": "Copy GitHub URL"
          },
          {
+            "command": "extension.github-file-folder-url.copyGithubUrl-simple",
+            "title": "Copy RAW GitHub URL"
+         },
+         {
             "command": "extension.github-file-folder-url.copyGithubUrlWithSelection",
             "title": "Copy GitHub URL with Selection"
          },
          {
+            "command": "extension.github-file-folder-url.copyGithubUrlWithSelection-simple",
+            "title": "Copy RAW GitHub URL with Selection"
+         },
+         {
             "command": "extension.github-file-folder-url.copyGithubUrlForAllOpenFiles",
             "title": "Copy GitHub URL for all open files"
+         },
+         {
+            "command": "extension.github-file-folder-url.copyGithubUrlForAllOpenFiles-simple",
+            "title": "Copy RAW GitHub URL for all open files"
          }
-         
       ],
       "keybindings": [
          {
