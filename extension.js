@@ -143,9 +143,9 @@ Workspace Root:  ${workspaceRootPath}`;
    }
    catch (e) {
       const errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
-      if (e.name && e.message) {
-         errorMessage += `\n\n(${extensionName}) ${e.name}: ${e.message}`
-      };
+      if (e) {
+         errorMessage += `\n\nErr: ${e}`;
+      }
       console.log(errorMessage);
       vscode.window.showErrorMessage(errorMessage);
       return;
@@ -182,11 +182,11 @@ function executeCommand1(commandName, fileUri, pullLines, simpleFormat) {
          filePath = editor.document.fileName;
       }
 
-         if (!fs.existsSync(filePath)) {
-            // we generate a warning but still generate the url
-            const errorMessage = `The file '${filePath}' does not exist locally, so no url was generated.`;
-            allWarnings.push(errorMessage);
-         }
+      if (!fs.existsSync(filePath)) {
+         // we generate a warning but still generate the url
+         const errorMessage = `The file '${filePath}' does not exist locally, so no url was generated.`;
+         allWarnings.push(errorMessage);
+      }
 
       const result = generateGithubUrl(commandName, workspaceRootPath, filePath, lineInfo);
       if (result) {
@@ -195,7 +195,7 @@ function executeCommand1(commandName, fileUri, pullLines, simpleFormat) {
                {
                   const url = result.url;
                   const relativeFilePath = result.relativePathFromGitRoot;
-                  const urlMarkdownLink = simpleFormat ? url :`[${relativeFilePath}](${url})`;
+                  const urlMarkdownLink = simpleFormat ? url : `[${relativeFilePath}](${url})`;
                   copyPaste.copy(urlMarkdownLink);
                }
                return;
@@ -223,9 +223,9 @@ Workspace Root:  ${workspaceRootPath}`;
    }
    catch (e) {
       const errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
-      if (e.name && e.message) {
-         errorMessage += `\n\n(${extensionName}) ${e.name}: ${e.message}`
-      };
+      if (e) {
+         errorMessage += `\n\nErr: ${e}`;
+      }
       console.log(errorMessage);
       vscode.window.showErrorMessage(errorMessage);
       return;
@@ -307,9 +307,9 @@ Filepath:        ${filePath}`;
    }
    catch (e) {
       let errorMessage = `${extensionName} extension failed to run 'generateGithubUrl' due to an unhandled error.  See debug console for details.`;
-      if (e.name && e.message) {
-         errorMessage += `\n\n(${extensionName}) ${e.name}: ${e.message}`
-      };
+      if (e) {
+         errorMessage += `\n\nErr: ${e}`;
+      }
       return {
          type: 'error',
          errorMessage,
@@ -352,7 +352,7 @@ function findAndParseConfig(rootPath) {
                const modName = match1[1];
                const modFullpath = path.join(currentPath, modName).replace(/\\/g, '/');
                if (!subUrl) {
-                  console.warn(`subModule '${name}' at '${modFullpath}' is missing a url, it will be skipped`);
+                  console.warn(`subModule '${modName}' at '${modFullpath}' is missing a url, it will be skipped`);
                } else {
                   const metaInfo = {
                      path: modFullpath,
