@@ -1,5 +1,6 @@
 .vscode/**
 typings/**
 test/**
+out/**
 .gitignore
 jsconfig.json

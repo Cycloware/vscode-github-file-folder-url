@@ -1,47 +1,47 @@
-"use strict";
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-const vscode = require('vscode');
-const path = require('path');
+import * as vscode from 'vscode';
+import * as  path from 'path';
 const parseConfig = require('parse-git-config');
 const gitBranch = require('git-branch');
 const githubUrlFromGit = require('github-url-from-git');
-const copyPaste = require("copy-paste");
-const fs = require("fs");
+import * as  copyPaste from 'copy-paste'
+import * as  fs from 'fs';
+
+type Uri = vscode.Uri;
 
 const extensionName = 'Github-File-Url';
-
+namespace TYPE {
+   export type config = '.git/config';
+   export type modules = '.gitmodules';
+}
 const TYPE = {
-   git_config: '.git/config',
-   git_modules: '.gitmodules',
-};
+   config: '.git/config' as TYPE.config,
+   modules: '.gitmodules' as TYPE.modules,
+}
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-function activate(context) {
+export function activate(context: vscode.ExtensionContext) {
 
    // The command has been defined in the package.json file
    {
       const commandName = 'extension.github-file-folder-url.copyGithubUrlWithSelection';
-      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri: Uri) => {
          executeCommand1(commandName, fileUri, true, false);
       }));
    }
    {
       const commandName = 'extension.github-file-folder-url.copyGithubUrlWithSelection-simple';
-      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri: Uri) => {
          executeCommand1(commandName, fileUri, true, true);
       }));
    }
    {
       const commandName = 'extension.github-file-folder-url.copyGithubUrl';
-      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri: Uri) => {
          executeCommand1(commandName, fileUri, false, false);
       }));
    }
    {
       const commandName = 'extension.github-file-folder-url.copyGithubUrl-simple';
-      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri) => {
+      context.subscriptions.push(vscode.commands.registerCommand(commandName, (fileUri: Uri) => {
          executeCommand1(commandName, fileUri, false, true);
       }));
    }
@@ -59,11 +59,11 @@ function activate(context) {
    }
 }
 
-function executeCommandAllTextEditors(commandName, simpleFormat) {
+function executeCommandAllTextEditors(commandName: string, simpleFormat: boolean) {
 
    try {
       const workspaceRootPath = vscode.workspace.rootPath;
-      const uniquePaths = {};
+      const uniquePaths: { [key: string]: vscode.TextDocument } = {};
       const textEditors = vscode.workspace.textDocuments.filter(p => path.isAbsolute(p.fileName));
       if (textEditors.length === 0) {
          let errorMessage = 'No open text editors';
@@ -124,6 +124,11 @@ function executeCommandAllTextEditors(commandName, simpleFormat) {
          console.log(combinedMessage);
          vscode.window.showErrorMessage(combinedMessage);
       }
+      if (allWarnings.length === 0) {
+         const combinedMessage = `The following ${allWarnings.length} warnings occured:\n\n${allWarnings.join('\n\n')}`;
+         console.log(combinedMessage);
+         vscode.window.showErrorMessage(combinedMessage);
+      }
 
       if (allPaths.length > 0) {
          const combindedPaths = allPaths.join('\n');
@@ -131,18 +136,18 @@ function executeCommandAllTextEditors(commandName, simpleFormat) {
          return;
       }
 
-      if (allErrors.length === 0) {
-         const errorMessage = `${extensionName} extension failed to run command '${commandName}'.
+      if (allWarnings.length === 0 && allErrors.length === 0) {
+         const message = `${extensionName} extension failed to run command '${commandName}'.
 Is this a Github repository?
 
 Workspace Root:  ${workspaceRootPath}`;
-         console.log(errorMessage);
-         vscode.window.showErrorMessage(errorMessage);
+         console.log(message);
+         vscode.window.showErrorMessage(message);
          return;
       }
    }
    catch (e) {
-      const errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
+      let errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
       if (e) {
          errorMessage += `\n\nErr: ${e}`;
       }
@@ -152,10 +157,12 @@ Workspace Root:  ${workspaceRootPath}`;
    }
 
 }
-function executeCommand1(commandName, fileUri, pullLines, simpleFormat) {
+
+type ILineInfo = { start: number, end: number };
+function executeCommand1(commandName: string, fileUri: Uri, pullLines: boolean, simpleFormat: boolean) {
    try {
       const workspaceRootPath = vscode.workspace.rootPath;
-      let lineInfo = null;
+      let lineInfo : ILineInfo = null;
       if (pullLines) {
          let editor = vscode.window.activeTextEditor;
          if (editor) {
@@ -182,6 +189,7 @@ function executeCommand1(commandName, fileUri, pullLines, simpleFormat) {
          filePath = editor.document.fileName;
       }
 
+      const allWarnings = [];
       if (!fs.existsSync(filePath)) {
          // we generate a warning but still generate the url
          const errorMessage = `The file '${filePath}' does not exist locally, so no url was generated.`;
@@ -222,7 +230,7 @@ Workspace Root:  ${workspaceRootPath}`;
       }
    }
    catch (e) {
-      const errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
+      let errorMessage = `${extensionName} extension failed to execute command '${commandName}'.  See debug console for details.`;
       if (e) {
          errorMessage += `\n\nErr: ${e}`;
       }
@@ -233,7 +241,7 @@ Workspace Root:  ${workspaceRootPath}`;
 
 }
 
-function generateGithubUrl(commandName, workspaceRootPath, filePath, lineSelection) {
+function generateGithubUrl(commandName: string, workspaceRootPath: string, filePath: string, lineSelection: ILineInfo) {
    try {
       workspaceRootPath = workspaceRootPath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
       filePath = filePath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
@@ -245,7 +253,7 @@ Is this a Github repository?
 Workspace Root:  ${workspaceRootPath}
 Filepath:        ${filePath}`;
          return {
-            type: 'error',
+            type: 'error' as 'error',
             errorMessage,
          };
       }
@@ -288,7 +296,7 @@ Filepath:        ${filePath}`;
             }
          }
          return {
-            type: 'success',
+            type: 'success' as 'success',
             url,
             relativeFilePath,
             relativePathFromGitRoot,
@@ -300,7 +308,7 @@ Is this a Github repository?
 Workspace Root:  ${workspaceRootPath}
 Filepath:        ${filePath}`;
          return {
-            type: 'error',
+            type: 'error' as 'error',
             errorMessage,
          };
       }
@@ -311,7 +319,7 @@ Filepath:        ${filePath}`;
          errorMessage += `\n\nErr: ${e}`;
       }
       return {
-         type: 'error',
+         type: 'error' as 'error',
          errorMessage,
       };
    }
@@ -319,15 +327,15 @@ Filepath:        ${filePath}`;
 
 const reSubModulePuller = /"([^"]*)"/g;
 
-function findAndParseConfig(rootPath) {
-   function intParseGitConfig(cwd) {
-      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.git_config });
+function findAndParseConfig(rootPath: string) {
+   function intParseGitConfig(cwd: string) {
+      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.config });
       if (!(Object.keys(ret).length === 0 && ret.constructor === Object)) {
          return ret;
       }
    }
-   function intParseModuleConfig(cwd) {
-      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.git_modules });
+   function intParseModuleConfig(cwd: string) {
+      let ret = parseConfig.sync({ cwd: cwd, path: TYPE.modules });
       if (!(Object.keys(ret).length === 0 && ret.constructor === Object)) {
          return ret;
       }
@@ -336,12 +344,12 @@ function findAndParseConfig(rootPath) {
    rootPath = rootPath.replace(/\\/g, '/'); // Flip subdir slashes on Windows
    const pathParts = rootPath.split('/');
    let subModuleConfigs = [];
-   let subModules = [];
+   let subModules: IModuleInfo[] = [];
    let stepsUp = 0;
    while (pathParts.length > 0) {
       let currentPath = pathParts.join('/');
       let gitConfig = intParseGitConfig(currentPath);
-      function pullSubModules(subMeta) {
+      function pullSubModules(subMeta: IRootOrModuleMeta): IModuleInfo[] {
          const config = subMeta.config;
          const ret = [];
          for (const key in config) {
@@ -375,8 +383,8 @@ function findAndParseConfig(rootPath) {
             // pathMap
          }
 
-         const rootMeta = {
-            type: TYPE.git_config,
+         const rootMeta: IRootMeta = {
+            type: TYPE.config,
             rootPath: currentPath,
             path: currentPath,
             config: gitConfig,
@@ -391,8 +399,8 @@ function findAndParseConfig(rootPath) {
       } else {
          let moduleConfig = intParseModuleConfig(currentPath);
          if (moduleConfig) {
-            const subMeta = {
-               type: TYPE.git_modules,
+            const subMeta: IModuleMeta = {
+               type: TYPE.modules,
                path: currentPath,
                config: moduleConfig,
                stepsUp,
@@ -406,4 +414,27 @@ function findAndParseConfig(rootPath) {
       pathParts.pop();
    }
 }
-exports.activate = activate;
+
+type IModuleInfo = {
+   path: string,
+   name: string,
+   url: any,
+};
+type IModuleMeta = {
+   type: TYPE.modules,
+   path: string,
+   config: any,
+   subs?: IModuleInfo[],
+   stepsUp: number,
+}
+type IRootMeta = {
+   type: TYPE.config,
+   rootPath: string,
+   path: string,
+   config: any,
+   stepsUp: number,
+   subs?: IModuleInfo[],
+   subModules?: any,
+}
+
+type IRootOrModuleMeta = IModuleMeta | IRootMeta;
